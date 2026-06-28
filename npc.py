@@ -1,160 +1,155 @@
-# npc.py
 import pygame
-from player import Sprite  # assuming Sprite is defined in player.py
+from player import Sprite  # Asumiendo que Sprite está en player.py
 import fight
 
 class NPC(Sprite):
-    def __init__(self, image_path, x, y, use_e_key=False, pad=10):
-        # Llamada al padre SOLO con lo que necesita
-        super().__init__(image_path, x, y)
-
+    # Añadimos width=32 y height=32 como valores por defecto
+    def __init__(self, image_path, x, y, use_e_key=False, pad=10, width=32, height=32):
+        # Se los pasamos a la clase Sprite para que cambie el tamaño de la imagen
+        super().__init__(image_path, x, y, width=width, height=height)
+        
         self.use_e_key = use_e_key
         self.pad = pad
         self.conversation_done = False
 
-        # Key tracking
-        self._key_states = {}
+        # Key tracking para evitar repeticiones rápidas
         self._e_was_down = False
-        self._x_was_down = False
+        self._a_was_down = False
+        self._d_was_down = False
+        self._space_was_down = False
         self._in_range = False
 
         # UI
         self.font = pygame.font.Font(None, 28)
         self.prompt_font = pygame.font.Font(None, 24)
 
-        # Dialogue
-        self.dialogue_lines = [
-            "Annie: Hi, nice to meet you!",
-            "You: Hi, nice to meet you too!",
-            "Annie: Welcome to our village.",
-            "You: Thanks! It’s beautiful."
-        ]
+        # Diálogo por defecto
+        self.dialogue_lines = ["Annie: Hi, nice to meet you!"]
 
-        self.speaker_turns = ["npc", "player", "npc", "player"]
-
+        # Estado del NPC
         self.talking = False
         self.current_line = 0
         self.type_index = 0
         self.char_delay_ms = 18
         self.last_char_time = 0
-
-    def _key_was_down(self, key):
-        return self._key_states.get(key, False)
-
-    def _update_key_state(self, key):
-        self._key_states[key] = key in self._keys_down
+        
+        # --- VARIABLES PARA ELEGIR (LUCHAR / IRSE) ---
+        self.can_fight = False    
+        self.choosing = False     
+        self.choice_index = 0     # 0: Luchar, 1: Irse
+        self.choosing_cooldown = 0 # Temporizador para evitar saltar el menú por accidente
 
     def set_lines(self, lines):
-        self.dialogue_lines = list(lines)
-
-    def _talk_zone(self):
-        zone = self.rect.inflate(self.pad, self.pad)
-        zone.center = self.rect.center
-        return zone
-
-    def _start_talking(self):
-        if self.conversation_done == False:
-            self.talking = True
-            self.current_line = 0
-            self.type_index = 0
-            self.last_char_time = pygame.time.get_ticks()
-
-    def _advance_or_close(self, keys_down):
-        # Detecta teclado y mando sin cambiar firma del método
-        BUTTON_X = 0  # índice botón X en tu mando
-
-        # Chequea si hay algún mando y si el botón está presionado
-        pad_pressed = False
-        if pygame.joystick.get_count() > 0:
-            joy = pygame.joystick.Joystick(0)
-            if joy.get_button(BUTTON_X):
-                pad_pressed = True
-
-        if self.current_line >= len(self.dialogue_lines):
-            self.talking = False
-            self.conversation_done = True
-            return
-
-        line_full = self.dialogue_lines[self.current_line]
-        speaker = "player" if line_full.startswith("You:") else "npc"
-        required_key = pygame.K_e if speaker == "npc" else pygame.K_c
-
-        # Flanco de subida con teclado o con botón X
-        if ((required_key in keys_down and not self._key_was_down(required_key))
-            or (pad_pressed and not self._x_was_down)):
-
-            if self.type_index < len(line_full):
-                self.type_index = len(line_full)
-            else:
-                self.current_line += 1
-                if self.current_line >= len(self.dialogue_lines):
-                    self.talking = False
-                    self.conversation_done = True
-                    if line_full.startswith("you:"):
-                        fight.fight = True
-                else:
-                    self.type_index = 0
-                    self.last_char_time = pygame.time.get_ticks()
-
-        # Actualiza estados
-        self._update_key_state(required_key)
-        self._x_was_down = pad_pressed
+        self.dialogue_lines = lines
 
     def update(self, player_rect, keys_down):
-        self._keys_down = keys_down
-        self._in_range = self._talk_zone().colliderect(player_rect)
+        self.update_rect()
+        
+        # Distancia para saber si el jugador está cerca
+        dx = self.rect.centerx - player_rect.centerx
+        dy = self.rect.centery - player_rect.centery
+        dist = (dx**2 + dy**2)**0.5
+        self._in_range = dist <= 60
 
-        # También detecta inicio de conversación con botón X
-        BUTTON_X = 0
-        pad_pressed = False
-        if pygame.joystick.get_count() > 0:
-            joy = pygame.joystick.Joystick(0)
-            if joy.get_button(BUTTON_X):
-                pad_pressed = True
+        # Manejo de teclas PULSADAS (solo cuentan 1 vez al bajarlas)
+        e_down = pygame.K_e in keys_down
+        e_pressed = e_down and not self._e_was_down
+        self._e_was_down = e_down
 
-        if self.use_e_key:
-            e_down = pygame.K_e in keys_down
-            if self._in_range and not self.talking and (
-                (e_down and not self._e_was_down)
-                or (pad_pressed and not self._x_was_down)
-            ):
-                self._start_talking()
-            self._e_was_down = e_down
-            self._x_was_down = pad_pressed
-        else:
-            if self._in_range and not self.talking:
-                self._start_talking()
-            if self.talking and not self._in_range:
-                self.talking = False
+        a_down = pygame.K_a in keys_down
+        a_pressed = a_down and not self._a_was_down
+        self._a_was_down = a_down
 
-        if self.talking:
-            self._advance_or_close(keys_down)
+        d_down = pygame.K_d in keys_down
+        d_pressed = d_down and not self._d_was_down
+        self._d_was_down = d_down
+        
+        space_down = pygame.K_SPACE in keys_down
+        space_pressed = space_down and not self._space_was_down
+        self._space_was_down = space_down
 
-        # typing effect
-        if self.talking and self.current_line < len(self.dialogue_lines):
-            line_full = self.dialogue_lines[self.current_line]
-            now = pygame.time.get_ticks()
-            if self.type_index < len(line_full) and now - self.last_char_time >= self.char_delay_ms:
-                self.type_index += 1
-                self.last_char_time = now
+        # ==========================================
+        # MODO ELECCIÓN (Luchar o Irse)
+        # ==========================================
+        if self.choosing:
+            if a_pressed:
+                self.choice_index = 0  # Izquierda (Luchar)
+            elif d_pressed:
+                self.choice_index = 1  # Derecha (Irse)
+                
+            # Confirma la selección solo si ha pasado medio segundo (500 ms) 
+            # para evitar que la pulsación del chat cierre esto accidentalmente.
+            if e_pressed or space_pressed:
+                if pygame.time.get_ticks() > self.choosing_cooldown:
+                    self.choosing = False
+                    self.conversation_done = True
+                    if self.choice_index == 0:
+                        fight.fight = True  # ¡Inicia el combate!
+            return # Termina para no entrar al código de chat inferior
 
-    def draw(self, screen):
-        super().draw(screen)  # draw the NPC sprite
+        # ==========================================
+        # LÓGICA DE CONVERSACIÓN NORMAL
+        # ==========================================
+        if not self.conversation_done:
+            if not self.talking:
+                if self._in_range:
+                    if not self.use_e_key or e_pressed:
+                        self.talking = True
+                        self.current_line = 0
+                        self.type_index = 0
+                        self.last_char_time = pygame.time.get_ticks()
+            else:
+                current_text = self.dialogue_lines[self.current_line]
+                now = pygame.time.get_ticks()
+                
+                # Efecto máquina de escribir
+                if self.type_index < len(current_text):
+                    if now - self.last_char_time > self.char_delay_ms:
+                        self.type_index += 1
+                        self.last_char_time = now
+                
+                # Avanzar diálogo
+                if e_pressed or space_pressed:
+                    if self.type_index < len(current_text):
+                        self.type_index = len(current_text) # Saltamos animación
+                    else:
+                        self.current_line += 1
+                        self.type_index = 0
+                        # ¿Se acabó el diálogo?
+                        if self.current_line >= len(self.dialogue_lines):
+                            self.talking = False
+                            
+                            # Si es enemigo, abrimos el menú de elección. Si no, fin normal.
+                            if self.can_fight:
+                                self.choosing = True
+                                self.choice_index = 0 # Empezamos apuntando a "Luchar"
+                                # Bloqueamos confirmaciones durante 0.5 segundos:
+                                self.choosing_cooldown = pygame.time.get_ticks() + 500 
+                            else:
+                                self.conversation_done = True
 
-        if self.use_e_key and self._in_range and not self.talking:
-            self._draw_prompt(screen, "Press E or X to talk")
-
+    def draw(self, surface):
+        super().draw(surface)
+        
         if self.talking:
             text = self.dialogue_lines[self.current_line][:self.type_index]
-            self._draw_speech_bubble(screen, text)
+            self._draw_speech_bubble(surface, text)
+            
+        elif self.choosing:
+            # Dibujamos las opciones de una manera clara y sin errores de espacio
+            if self.choice_index == 0:
+                texto_opciones = "Decide: [ > FIGHT < ]    o    [  Evaporate (leave)  ]\n(Use A / D to select and space for confirm)"
+            else:
+                texto_opciones = "Decide: [  Fight  ]    o    [ > Evaporate (leave) < ]\n(Use A / D to select and space for confirm)"
+            
+            
+            self._draw_speech_bubble(surface, texto_opciones)
+            
+        elif self._in_range and not self.conversation_done and self.use_e_key:
+            self._draw_e_prompt(surface)
 
-            if self.type_index >= len(self.dialogue_lines[self.current_line]):
-                speaker = "npc" if self.dialogue_lines[self.current_line].startswith("Annie:") else "player"
-                prompt_text = "Press E/X to continue" if speaker == "npc" else "Press C/X to continue"
-                self._draw_prompt(screen, prompt_text)
-
-    def _draw_prompt(self, surface, text):
-        prompt = self.prompt_font.render(text, True, (255, 255, 255))
+    def _draw_e_prompt(self, surface):
+        prompt = self.prompt_font.render("[E] Talk", True, (255, 255, 255))
         padding = 6
         bg = prompt.get_rect()
         bg.inflate_ip(padding * 2, padding * 2)
@@ -168,9 +163,11 @@ class NPC(Sprite):
         bubble_w, bubble_h = screen_width - 40, 100
         bubble = pygame.Rect(20, screen_height - bubble_h - 20, bubble_w, bubble_h)
 
+        # Fondo y borde de la caja
         pygame.draw.rect(surface, (255, 255, 255), bubble, border_radius=10)
         pygame.draw.rect(surface, (0, 0, 0), bubble, width=2, border_radius=10)
 
+        # Texto renderizado
         rendered = self._wrap_text(self.font, text, bubble_w - 24)
         y = bubble.y + 12
         for line in rendered:
@@ -181,16 +178,28 @@ class NPC(Sprite):
     def _wrap_text(font, text, max_width):
         if not text:
             return []
-        words = text.split(" ")
-        lines = []
-        current = ""
-        for w in words:
-            test = (current + " " + w).strip()
-            if font.size(test)[0] <= max_width or not current:
-                current = test
-            else:
-                lines.append(font.render(current, True, (0, 0, 0)))
-                current = w
-        if current:
-            lines.append(font.render(current, True, (0, 0, 0)))
-        return lines
+            
+        # Separar por saltos de línea ("\n")
+        manual_lines = text.split("\n")
+        final_surfaces = []
+        
+        for manual_line in manual_lines:
+            words = manual_line.split(" ")
+            lines = []
+            current_line = []
+            
+            for word in words:
+                current_line.append(word)
+                fw, fh = font.size(" ".join(current_line))
+                if fw > max_width:
+                    current_line.pop()
+                    lines.append(" ".join(current_line))
+                    current_line = [word]
+                    
+            if current_line:
+                lines.append(" ".join(current_line))
+                
+            for string_line in lines:
+                final_surfaces.append(font.render(string_line, True, (0, 0, 0)))
+                
+        return final_surfaces
