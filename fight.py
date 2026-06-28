@@ -48,10 +48,13 @@ def init_swords():
     if boss_type == 1:
         # --- PERFIL 1: EL ORIGINAL QUE YA TENÍAS ---
         sword_queue = [
-            Sword(850, 200, 300, 400, speed=5, image_path="ride/sword_normal.png"),
-            Sword(-50, 500, 300, 400, speed=5, image_path="ride/sword_normal.png"),
-            Sword(400, -50, 300, 400, speed=5, image_path="ride/sword_normal.png"),
-            Sword(400, 850, 300, 400, speed=5, image_path="ride/sword_normal.png"),
+            Sword(-800, 300, 1100, 300, image_path="ride/sword_normal.png"),
+            Sword(-800, 200, 1100, 200, image_path="ride/sword_normal.png"),
+            Sword(-800, 400, 1100, 400, image_path="ride/sword_normal.png"),
+            Sword(-800, 300, 1100, 300, image_path="ride/sword_normal.png"),
+            Sword(300, -700, 300, 800, image_path="ride/sword_not_normal.png"),
+            Sword(400, -700, 400, 800, image_path="ride/sword_not_normal.png"),
+            Sword(200, -700, 200, 800, image_path="ride/sword_not_normal.png"),
         ]
         current_delay = 4000
     else:
