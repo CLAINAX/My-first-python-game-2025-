@@ -35,6 +35,7 @@ class NPC(Sprite):
         
         # --- VARIABLES PARA ELEGIR (LUCHAR / IRSE) ---
         self.can_fight = False    
+        self.force_fight = False  # Obliga a pelear directo sin menú
         self.choosing = False     
         self.choice_index = 0     # 0: Luchar, 1: Irse
         self.choosing_cooldown = 0 # Temporizador para evitar saltar el menú por accidente
@@ -116,14 +117,19 @@ class NPC(Sprite):
                         self.current_line += 1
                         self.type_index = 0
                         # ¿Se acabó el diálogo?
+                        # ¿Se acabó el diálogo?
                         if self.current_line >= len(self.dialogue_lines):
                             self.talking = False
                             
-                            # Si es enemigo, abrimos el menú de elección. Si no, fin normal.
-                            if self.can_fight:
+                            # --- CAMBIO MÍNIMO: ¿Te obliga a luchar? ---
+                            if self.force_fight:
+                                fight.fight = True  # Inicia combate de golpe
+                                self.conversation_done = True
+                                
+                            # Si no obliga, abre el menú normal (Jefe Nivel 2)
+                            elif self.can_fight:
                                 self.choosing = True
-                                self.choice_index = 0 # Empezamos apuntando a "Luchar"
-                                # Bloqueamos confirmaciones durante 0.5 segundos:
+                                self.choice_index = 0 
                                 self.choosing_cooldown = pygame.time.get_ticks() + 500 
                             else:
                                 self.conversation_done = True
